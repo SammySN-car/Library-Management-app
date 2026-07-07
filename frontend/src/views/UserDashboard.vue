@@ -1,0 +1,1 @@
+<template><div><h2>UserDashboard</h2></div></template><script setup></script>
