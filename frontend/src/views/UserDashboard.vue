@@ -1,76 +1,58 @@
-<template>
-  <div>
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h2 class="fw-bold mb-0">My Library</h2>
-        <p class="text-muted small">Search books, request to borrow, and manage returns</p>
-      </div>
-      <button @click="logout" class="btn btn-outline-danger btn-sm rounded-pill px-3">Logout</button>
-    </div>
-
-    <!-- Navigation Pills -->
-    <ul class="nav nav-pills mb-4 pb-2 border-bottom border-secondary opacity-75">
-      <li class="nav-item">
-        <button class="nav-link rounded-pill px-4 py-2 me-2" :class="{ 'active': activeTab === 'search', 'btn-premium': activeTab === 'search' }" @click="activeTab = 'search'">
-          Search Catalog
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link rounded-pill px-4 py-2 me-2" :class="{ 'active': activeTab === 'mybooks', 'btn-premium': activeTab === 'mybooks' }" @click="activeTab = 'mybooks'">
-          My Borrowed Books
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link rounded-pill px-4 py-2" :class="{ 'active': activeTab === 'fines', 'btn-premium': activeTab === 'fines' }" @click="activeTab = 'fines'">
-          Fines & History
-        </button>
-      </li>
-    </ul>
-
-    <!-- Dynamic Component Area -->
-    <div class="glass-card p-4">
-      <div v-if="activeTab === 'search'">
-        <UserSearch />
-      </div>
-      
-      <div v-if="activeTab === 'mybooks'">
-        <h5 class="fw-bold mb-4">My Borrowed Books</h5>
-        <UserMyBooks />
-      </div>
-      
-      <div v-if="activeTab === 'fines'">
-        <h5 class="fw-bold mb-4">Fines</h5>
-        <p class="text-muted small">Fines are calculated automatically for overdue books ($1 per day). Please clear pending fines at the desk.</p>
-        <div class="alert alert-info py-2 small">Check your "My Borrowed Books" tab to see active overdues.</div>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { clearAuth } from '../api/auth'
-import UserSearch from '../components/UserSearch.vue'
-import UserMyBooks from '../components/UserMyBooks.vue'
+import UserSearch from '@/components/UserSearch.vue'
+import UserMyBooks from '@/components/UserMyBooks.vue'
 
 const router = useRouter()
-const activeTab = ref('search')
+const currentTab = ref('search')
+const token = ref('')
+
+onMounted(() => {
+    token.value = localStorage.getItem('token')
+    const role = localStorage.getItem('role')
+    if (!token.value || role !== 'user') {
+        router.push('/')
+    }
+})
 
 const logout = () => {
-  clearAuth()
-  router.push('/login')
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
+    localStorage.removeItem('id')
+    router.push('/')
 }
 </script>
 
+<template>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Library Dashboard</h2>
+            <span class="badge bg-primary">Member Access</span>
+        </div>
+        
+        <nav class="nav nav-pills flex-column flex-sm-row mb-4 p-2 bg-light rounded shadow-sm">
+            <button class="flex-sm-fill text-sm-center nav-link border-0" :class="{ active: currentTab === 'search' }" @click="currentTab = 'search'">Search & Borrow</button>
+            <button class="flex-sm-fill text-sm-center nav-link border-0" :class="{ active: currentTab === 'mybooks' }" @click="currentTab = 'mybooks'">My Books & History</button>
+            <button class="flex-sm-fill text-sm-center nav-link border-0 text-danger" @click="logout">Logout</button>
+        </nav>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <UserSearch v-if="currentTab === 'search'" />
+                <UserMyBooks v-else-if="currentTab === 'mybooks'" />
+            </div>
+        </div>
+    </div>
+</template>
+
 <style scoped>
 .nav-link {
-  color: var(--text-secondary);
-  font-weight: 500;
-  transition: all 0.2s;
+    cursor: pointer;
+    font-weight: 500;
 }
-.nav-link:hover:not(.active) {
-  background: var(--surface-2);
-  color: var(--text-main);
+.nav-link.active {
+    background-color: #0d6efd !important;
+    color: white !important;
 }
 </style>

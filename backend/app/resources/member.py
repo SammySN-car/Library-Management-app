@@ -1,45 +1,17 @@
-from flask import request
 from flask_restful import Resource
-from flask_jwt_extended import jwt_required, get_jwt
-from ..models import db, User
+from flask_jwt_extended import jwt_required
+from backend.models.models import Users
+from backend.utils.jwt_utils import admin_required
 
-def is_admin():
-    claims = get_jwt()
-    return claims.get('role') == 'admin'
-
-class MemberListResource(Resource):
+class ViewMembers(Resource):
     @jwt_required()
+    @admin_required
     def get(self):
-        if not is_admin():
-            return {'message': 'Admin access required'}, 403
-            
-        users = User.query.filter_by(role='user').all()
-        result = []
+        users=Users.query.filter_by(role='user').all()
+        all_users=[]
         for u in users:
-            result.append({
-                'id': u.id,
-                'name': u.name,
-                'email': u.email,
-                'is_active': u.is_active,
-                'created_at': u.created_at.isoformat() if u.created_at else None
+            all_users.append({
+                'id':u.id,'full_name':u.full_name,'email_id':u.email_id,
+                'address':u.address,'pincode':u.pincode
             })
-        return {'message': 'Members retrieved', 'data': result}, 200
-
-
-class MemberResource(Resource):
-    @jwt_required()
-    def put(self, user_id):
-        if not is_admin():
-            return {'message': 'Admin access required'}, 403
-            
-        user = User.query.get(user_id)
-        if not user or user.role != 'user':
-            return {'message': 'Member not found'}, 404
-            
-        data = request.get_json()
-        if 'is_active' in data:
-            user.is_active = data['is_active']
-            db.session.commit()
-            
-        status_msg = 'unblocked' if user.is_active else 'blocked'
-        return {'message': f'Member successfully {status_msg}'}, 200
+        return {'message':'here are the details','all_users':all_users},200

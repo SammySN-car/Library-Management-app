@@ -1,84 +1,64 @@
-<template>
-  <div>
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h2 class="fw-bold mb-0">Admin Dashboard</h2>
-        <p class="text-muted small">Manage library operations and resources</p>
-      </div>
-      <button @click="logout" class="btn btn-outline-danger btn-sm rounded-pill px-3">Logout</button>
-    </div>
-
-    <!-- Navigation Pills -->
-    <ul class="nav nav-pills mb-4 pb-2 border-bottom border-secondary opacity-75">
-      <li class="nav-item">
-        <button class="nav-link rounded-pill px-4 py-2 me-2" :class="{ 'active': activeTab === 'books', 'btn-premium': activeTab === 'books' }" @click="activeTab = 'books'">
-          Books
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link rounded-pill px-4 py-2 me-2" :class="{ 'active': activeTab === 'members', 'btn-premium': activeTab === 'members' }" @click="activeTab = 'members'">
-          Members
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link rounded-pill px-4 py-2 me-2" :class="{ 'active': activeTab === 'desk', 'btn-premium': activeTab === 'desk' }" @click="activeTab = 'desk'">
-          Issue / Return Desk
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link rounded-pill px-4 py-2" :class="{ 'active': activeTab === 'reports', 'btn-premium': activeTab === 'reports' }" @click="activeTab = 'reports'">
-          Reports
-        </button>
-      </li>
-    </ul>
-
-    <!-- Dynamic Component Area -->
-    <div class="glass-card p-4">
-      <div v-if="activeTab === 'books'">
-        <AdminBooks />
-      </div>
-      
-      <div v-if="activeTab === 'members'">
-        <AdminMembers />
-      </div>
-      
-      <div v-if="activeTab === 'desk'">
-        <AdminDesk />
-      </div>
-      
-      <div v-if="activeTab === 'reports'">
-        <AdminReports />
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { clearAuth } from '../api/auth'
-import AdminBooks from '../components/AdminBooks.vue'
-import AdminMembers from '../components/AdminMembers.vue'
-import AdminDesk from '../components/AdminDesk.vue'
-import AdminReports from '../components/AdminReports.vue'
+import AdminBooks from '@/components/AdminBooks.vue'
+import AdminDesk from '@/components/AdminDesk.vue'
+import AdminMembers from '@/components/AdminMembers.vue'
+import AdminReports from '@/components/AdminReports.vue'
 
 const router = useRouter()
-const activeTab = ref('books')
+const currentTab = ref('books')
+const token = ref('')
+
+onMounted(() => {
+    token.value = localStorage.getItem('token')
+    const role = localStorage.getItem('role')
+    if (!token.value || role !== 'admin') {
+        router.push('/')
+    }
+})
 
 const logout = () => {
-  clearAuth()
-  router.push('/login')
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
+    localStorage.removeItem('id')
+    router.push('/')
 }
 </script>
 
+<template>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Admin Control Panel</h2>
+            <span class="badge bg-secondary">Role: Admin</span>
+        </div>
+        
+        <nav class="nav nav-pills flex-column flex-sm-row mb-4 p-2 bg-light rounded shadow-sm">
+            <button class="flex-sm-fill text-sm-center nav-link border-0" :class="{ active: currentTab === 'books' }" @click="currentTab = 'books'">Books Catalog</button>
+            <button class="flex-sm-fill text-sm-center nav-link border-0" :class="{ active: currentTab === 'desk' }" @click="currentTab = 'desk'">Issue/Return Desk</button>
+            <button class="flex-sm-fill text-sm-center nav-link border-0" :class="{ active: currentTab === 'members' }" @click="currentTab = 'members'">Members</button>
+            <button class="flex-sm-fill text-sm-center nav-link border-0" :class="{ active: currentTab === 'reports' }" @click="currentTab = 'reports'">Summary Reports</button>
+            <button class="flex-sm-fill text-sm-center nav-link border-0 text-danger" @click="logout">Logout</button>
+        </nav>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <AdminBooks v-if="currentTab === 'books'" />
+                <AdminDesk v-else-if="currentTab === 'desk'" />
+                <AdminMembers v-else-if="currentTab === 'members'" />
+                <AdminReports v-else-if="currentTab === 'reports'" />
+            </div>
+        </div>
+    </div>
+</template>
+
 <style scoped>
 .nav-link {
-  color: var(--text-secondary);
-  font-weight: 500;
-  transition: all 0.2s;
+    cursor: pointer;
+    font-weight: 500;
 }
-.nav-link:hover:not(.active) {
-  background: var(--surface-2);
-  color: var(--text-main);
+.nav-link.active {
+    background-color: #0d6efd !important;
+    color: white !important;
 }
 </style>

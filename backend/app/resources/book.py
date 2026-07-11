@@ -1,106 +1,111 @@
-from flask import request
 from flask_restful import Resource
-from flask_jwt_extended import jwt_required, get_jwt
-from ..models import db, Book
+from flask import request
+from flask_jwt_extended import jwt_required
+from backend.utils.db import db
+from backend.models.models import Book,BorrowRecord
+from backend.utils.jwt_utils import admin_required
+from sqlalchemy import text
 
-def is_admin():
-    claims = get_jwt()
-    return claims.get('role') == 'admin'
-
-class BookListResource(Resource):
+class AddBook(Resource):
     @jwt_required()
-    def get(self):
-        books = Book.query.all()
-        result = []
-        for b in books:
-            result.append({
-                'id': b.id,
-                'title': b.title,
-                'author': b.author,
-                'isbn': b.isbn,
-                'genre': b.genre,
-                'total_copies': b.total_copies,
-                'available_copies': b.available_copies
-            })
-        return {'message': 'Books retrieved successfully', 'data': result}, 200
-
-    @jwt_required()
+    @admin_required
     def post(self):
-        if not is_admin():
-            return {'message': 'Admin access required'}, 403
-            
-        data = request.get_json()
-        
-        # Check if ISBN exists
-        if Book.query.filter_by(isbn=data.get('isbn')).first():
-            return {'message': 'Book with this ISBN already exists'}, 409
+        data=request.get_json()
+        title=data.get('title')
+        author=data.get('author')
+        isbn=data.get('isbn')
+        genre=data.get('genre')
+        total_copies=data.get('total_copies')
+        price=data.get('price')
 
-        book = Book(
-            title=data.get('title'),
-            author=data.get('author'),
-            isbn=data.get('isbn'),
-            genre=data.get('genre'),
-            total_copies=data.get('total_copies', 1),
-            available_copies=data.get('total_copies', 1)
+        if not all([title,author,isbn,genre,total_copies]):
+            return {'message':'require all details'},400
+        
+        existing=Book.query.filter_by(isbn=isbn).first()
+        if existing:
+            return {'message':'Book with this ISBN already exists'},409
+
+        book=Book(
+            title=title,
+            author=author,
+            isbn=isbn,
+            genre=genre,
+            total_copies=total_copies,
+            available_copies=total_copies,
+            price=price or 0
         )
         db.session.add(book)
         db.session.commit()
-        return {'message': 'Book added successfully', 'data': {'id': book.id}}, 201
 
+        return {'message':'book added successfully'},201
 
-class BookResource(Resource):
+class EditBook(Resource):
     @jwt_required()
-    def get(self, book_id):
-        book = Book.query.get(book_id)
-        if not book:
-            return {'message': 'Book not found'}, 404
-            
-        return {
-            'message': 'Book retrieved successfully',
-            'data': {
-                'id': book.id,
-                'title': book.title,
-                'author': book.author,
-                'isbn': book.isbn,
-                'genre': book.genre,
-                'total_copies': book.total_copies,
-                'available_copies': book.available_copies
-            }
-        }, 200
+    @admin_required
+    def put(self,book_id):
+        data=request.get_json()
+        title=data.get('title')
+        author=data.get('author')
+        isbn=data.get('isbn')
+        genre=data.get('genre')
+        total_copies=data.get('total_copies')
+        price=data.get('price')
 
-    @jwt_required()
-    def put(self, book_id):
-        if not is_admin():
-            return {'message': 'Admin access required'}, 403
-            
-        book = Book.query.get(book_id)
-        if not book:
-            return {'message': 'Book not found'}, 404
+        if not all([title,author,isbn,genre,total_copies]):
+            return {'message':'require all details'},400
 
-        data = request.get_json()
-        book.title = data.get('title', book.title)
-        book.author = data.get('author', book.author)
-        book.isbn = data.get('isbn', book.isbn)
-        book.genre = data.get('genre', book.genre)
-        
-        # Adjust available copies if total copies changed
-        new_total = data.get('total_copies', book.total_copies)
-        diff = new_total - book.total_copies
-        book.total_copies = new_total
-        book.available_copies = book.available_copies + diff
+        book=Book.query.get(book_id)
+        if not book:
+            return {'message':'book not found'},404
+
+        old_total=book.total_copies
+        issued=old_total - book.available_copies
+
+        if total_copies<issued:
+            return {'message':'Cannot reduce below currently issued count'},409
+
+        book.title=title
+        book.author=author
+        book.isbn=isbn
+        book.genre=genre
+        book.total_copies=total_copies
+        book.available_copies=total_copies - issued
+        book.price=price or 0
 
         db.session.commit()
-        return {'message': 'Book updated successfully'}, 200
+        return {'message':'book updated successfully'},200
 
     @jwt_required()
-    def delete(self, book_id):
-        if not is_admin():
-            return {'message': 'Admin access required'}, 403
-            
-        book = Book.query.get(book_id)
+    @admin_required
+    def get(self,book_id):
+        book=Book.query.get(book_id)
         if not book:
-            return {'message': 'Book not found'}, 404
-            
-        db.session.delete(book)
+            return {'message':'book not found'},404
+        book_details={'id':book.id,'title':book.title,'author':book.author,'isbn':book.isbn,'genre':book.genre,'total_copies':book.total_copies,'available_copies':book.available_copies,'price':book.price}
+        return {'message':'here are the details','book_details':book_details},200
+
+class DeleteBook(Resource):
+    @jwt_required()
+    @admin_required
+    def delete(self,book_id):
+        count=BorrowRecord.query.filter_by(book_id=book_id,status='issued').count()
+        if count>0:
+            return {'message':'Cannot delete because book has active borrows'},409
+        obj=Book.query.filter_by(id=book_id).first()
+        if not obj:
+            return {'message':'book not found'},404
+        db.session.delete(obj)
         db.session.commit()
-        return {'message': 'Book deleted successfully'}, 200
+        return {'message':'book deleted successfully'},200
+
+class ViewBooks(Resource):
+    @jwt_required()
+    def get(self):
+        sql=text("""
+            SELECT b.*,
+                (SELECT COUNT(*) FROM BORROW_RECORD br WHERE br.book_id = b.id AND br.status = 'issued') AS currently_issued
+            FROM BOOK b
+        """)
+        result=db.session.execute(sql)
+        books=[dict(row._mapping) for row in result]
+        return {'message':'here are the details','all_books':books},200

@@ -1,65 +1,61 @@
-<template>
-  <div>
-    <h5 class="fw-bold mb-3">Manage Members</h5>
-    <div class="table-responsive">
-      <table class="table align-middle">
-        <thead class="table-light">
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Joined</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="member in members" :key="member.id">
-            <td class="fw-bold">{{ member.name }}</td>
-            <td>{{ member.email }}</td>
-            <td>{{ member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A' }}</td>
-            <td>
-              <span :class="member.is_active ? 'badge bg-success' : 'badge bg-danger'">
-                {{ member.is_active ? 'Active' : 'Blocked' }}
-              </span>
-            </td>
-            <td>
-              <button 
-                class="btn btn-sm" 
-                :class="member.is_active ? 'btn-outline-danger' : 'btn-outline-success'"
-                @click="toggleStatus(member)"
-              >
-                {{ member.is_active ? 'Block' : 'Unblock' }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</template>
 <script setup>
 import { ref, onMounted } from 'vue'
-import api from '../api/client'
+import axios from 'axios'
 
 const members = ref([])
+const message = ref('')
+const isSuccess = ref(false)
+const token = localStorage.getItem('token')
 
 const fetchMembers = async () => {
-  try {
-    const res = await api.get('/api/members')
-    members.value = res.data.data
-  } catch (err) {
-    console.error(err)
-  }
+    try {
+        const response = await axios.get('http://localhost:5000/admin/members', {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        members.value = response.data.all_users
+    } catch (err) {
+        message.value = err.response?.data?.message || 'Failed to fetch members'
+        isSuccess.value = false
+    }
 }
 
-const toggleStatus = async (member) => {
-  try {
-    await api.put(`/api/members/${member.id}`, { is_active: !member.is_active })
+onMounted(() => {
     fetchMembers()
-  } catch (err) {
-    alert(err.response?.data?.message || 'Error updating member')
-  }
-}
-
-onMounted(fetchMembers)
+})
 </script>
+
+<template>
+    <div>
+        <h3 class="mb-4">Registered Library Members</h3>
+
+        <div v-if="message" class="alert mb-3" :class="isSuccess ? 'alert-success' : 'alert-danger'" role="alert">
+            {{ message }}
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Member ID</th>
+                        <th>Full Name</th>
+                        <th>Email ID</th>
+                        <th>Address</th>
+                        <th>Pincode</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="user in members" :key="user.id">
+                        <td>{{ user.id }}</td>
+                        <td><strong>{{ user.full_name }}</strong></td>
+                        <td><code>{{ user.email_id }}</code></td>
+                        <td>{{ user.address }}</td>
+                        <td>{{ user.pincode }}</td>
+                    </tr>
+                    <tr v-if="members.length === 0">
+                        <td colspan="5" class="text-center text-muted py-4">No members registered yet.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</template>
